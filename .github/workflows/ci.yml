@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Mondays 14:17 UTC: catch a release whose cask bump was skipped.
+    - cron: "17 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HOMEBREW_NO_ANALYTICS: 1
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_ENV_HINTS: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  TAP: polytopic-systems/tap
+  CASK: polytopic-systems/tap/live-transcript
+
+jobs:
+  check:
+    name: Style, audit, install and uninstall
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    # Apple silicon, macOS 26: the cask has `depends_on arch: :arm64` and
+    # `depends_on macos: :tahoe`, so it cannot install on anything older.
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out the tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Homebrew with this checkout as the tap
+        run: |
+          brew update --quiet
+          brew --version
+          sw_vers
+          uname -m
+          taps="$(brew --repository)/Library/Taps/polytopic-systems"
+          mkdir -p "$taps"
+          rm -rf "$taps/homebrew-tap"
+          ln -s "$GITHUB_WORKSPACE" "$taps/homebrew-tap"
+          # Third-party taps need explicit trust since Homebrew 6.
+          brew trust "$TAP"
+
+      - name: Style
+        run: brew style "$TAP"
+
+      - name: Audit
+        run: brew audit --cask --strict --online "$CASK"
+
+      - name: Install
+        run: brew install --cask "$CASK"
+
+      - name: Check the installed app
+        run: |
+          app="/Applications/Live Transcript.app"
+          test -d "$app"
+          brew list --cask --versions live-transcript
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+          xcrun stapler validate "$app"
+
+      - name: Uninstall
+        run: |
+          brew uninstall --cask "$CASK"
+          if test -e "/Applications/Live Transcript.app"; then
+            echo "::error::Live Transcript.app is still in /Applications after uninstall"
+            exit 1
+          fi
+          if brew list --cask live-transcript >/dev/null 2>&1; then
+            echo "::error::Homebrew still lists live-transcript after uninstall"
+            exit 1
+          fi
+
+  livecheck:
+    name: Livecheck against the Sparkle feed
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Check out the tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Homebrew with this checkout as the tap
+        run: |
+          brew update --quiet
+          taps="$(brew --repository)/Library/Taps/polytopic-systems"
+          mkdir -p "$taps"
+          rm -rf "$taps/homebrew-tap"
+          ln -s "$GITHUB_WORKSPACE" "$taps/homebrew-tap"
+          brew trust "$TAP"
+
+      - name: Fail if the feed is ahead of the cask
+        run: |
+          brew livecheck --cask "$CASK"
+          result="$(brew livecheck --cask --json "$CASK")"
+          echo "$result"
+          current="$(jq -r '.[0].version.current // empty' <<<"$result")"
+          latest="$(jq -r '.[0].version.latest // empty' <<<"$result")"
+          outdated="$(jq -r '.[0].version.outdated // empty' <<<"$result")"
+          if [ -z "$latest" ] || [ -z "$outdated" ]; then
+            echo "::error::livecheck could not read a version from the feed"
+            exit 1
+          fi
+          if [ "$outdated" = "true" ]; then
+            echo "::error::The feed has $latest but the cask has $current. Bump Casks/live-transcript.rb."
+            exit 1
+          fi
+          echo "Cask $current matches the feed ($latest)."
