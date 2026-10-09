@@ -33,10 +33,12 @@ cask "tattle" do
   # to the Trash in Finder, or a deactivation request from the app itself, takes it out
   # (https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers).
   # So, before Homebrew removes the app, it runs the app's own command-line switch. It removes Tattle's filter
-  # configuration, asks macOS (without a prompt) whether the extension is installed, and if it is, submits
-  # OSSystemExtensionRequest.deactivationRequest and waits for the answer (up to 5 minutes). Exit status: 0 when
-  # the extension is gone or was never installed, 1 when the deactivation was refused or failed, 2 on timeout.
-  # macOS may ask for an administrator's approval while it runs.
+  # configuration and, in versions after 1.0.0, Tattle's DNS proxy configuration (there is one only if the user
+  # turned Tattle's DNS proxy on), asks macOS (without a prompt) whether the extension is installed, and if it is,
+  # submits OSSystemExtensionRequest.deactivationRequest and waits for the answer (up to 5 minutes). Exit status:
+  # 0 when the extension is gone or was never installed, 1 when the deactivation was refused or failed, 2 on
+  # timeout. The status is the extension's alone: a DNS proxy configuration that couldn't be removed doesn't change
+  # it, and the line the switch prints says so. macOS may ask for an administrator's approval while it runs.
   #
   # early_script is the same pattern the official Santa cask uses for its system extension. It is not one of
   # the structured uninstall_preflight_steps because those run inside Homebrew's sandbox, where a request to the
