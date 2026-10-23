@@ -4,8 +4,8 @@
 # each indented two spaces, and no on_arm/on_intel blocks with versions of their own. Tattle's release command
 # (Tools/ship.sh in the app's repository) replaces those two lines and nothing else; the URL is built from `version`.
 cask "tattle" do
-  version "1.1.1"
-  sha256 "d6d3963b0a1fc7d72b15809d460658cfb67e76062a5679f6d33c72ab17886397"
+  version "1.2.0"
+  sha256 "04215787491790b652946fb1423a634b9b79153c155d7ffe95afc6d181a6a31b"
 
   url "https://tattle.polytopic.systems/downloads/Tattle-#{version}.dmg"
   name "Tattle"
