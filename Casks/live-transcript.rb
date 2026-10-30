@@ -1,6 +1,6 @@
 cask "live-transcript" do
-  version "1.4.0"
-  sha256 "8924b9c8d9a81c3a415ada0dae48de7679865eb7fb6dff2d8b06a2bc7cd7c1ec"
+  version "1.4.1"
+  sha256 "9c103b1b8afc6ee352c89316edd54ec808a71861491c8ef415b5ecb0a544b9d9"
 
   url "https://livetranscript.polytopic.systems/downloads/Live-Transcript-#{version}.dmg"
   name "Live Transcript"
